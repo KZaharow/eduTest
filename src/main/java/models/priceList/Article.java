@@ -32,7 +32,7 @@ public class Article {
         this.name = name;
     }
 
-    public String getTax() {
+    public String getVatGroup() {
         return tax;
     }
 

@@ -1,13 +1,16 @@
 package models.receipt;
 
+import java.io.IOException;
+
 public interface Reciptor {
-    void saveReceipt();
 
     void create();
 
     void calcDiscount();
 
-    void printReceipt();
+    void printReceipt(Boolean saveToFile) throws IOException;
 
     void getTotal();
+
+    void calcVat();
 }

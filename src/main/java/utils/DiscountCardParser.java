@@ -22,7 +22,7 @@ public class DiscountCardParser {
                 }
             }
 
-            // define article from the string
+            // define discount from the string
             DiscountCard discountCard = new DiscountCard(arr[0], arr[1], Double.parseDouble(arr[2]));
 
             // put article data to the priceList list data base (Map)

@@ -1,13 +1,15 @@
 package process;
 
 import models.receipt.Iteam;
+import models.vat.Vat;
 import printer.Adjustment;
 import printer.Printer;
 import models.receipt.Reciptor;
-import models.discountCard.DiscounCardMap;
 import models.priceList.Article;
 import models.discountCard.DiscountCard;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,24 +18,22 @@ public class UserReceipt implements Reciptor {
 
     private final double DISCOUNT_QTY_LIMIT = 5; // 5.000
     private final double DISCOUNT_PRC_LIMIT = 10; //%
+    private final Path path;
+    private double total;
+    private double totalDiscount;
+    private DiscountCard discountCard;
     private String[] inputArrayString;
     private Map<String, Article> priceList;
     private Map<String, Iteam> items;
     private Map<String, DiscountCard> discountCardsList;
-    private DiscountCard discountCard;
-    private double total;
-    private double totalDiscount;
-    private Map<String, Double> vatList;
+    private Map<String, Vat> vats;
 
-    public UserReceipt(String[] inputArrayString, Map<String, Article> priceList, Map<String, DiscountCard> discountCardsList) {
+    public UserReceipt(String[] inputArrayString, Map<String, Article> priceList, Map<String, DiscountCard> discountCardsList, Map<String, Vat> vats, Path path) {
         this.inputArrayString = inputArrayString;
         this.priceList = priceList;
         this.discountCardsList = discountCardsList;
-    }
-
-    @Override
-    public void saveReceipt() {
-
+        this.vats = vats;
+        this.path = path;
     }
 
     @Override
@@ -45,15 +45,15 @@ public class UserReceipt implements Reciptor {
     private DiscountCard getUserDiscountCard(String[] userInputData) {
 
         //load test discount cards data base
-        HashMap testDiscountCardMap = DiscounCardMap.getTestDiscountCards();
+        //HashMap testDiscountCardMap = DiscounCardMap.getTestDiscountCards();
 
         // get user discount card data
         for (String s : userInputData) {
 
             if (s.matches("#\\d{1,10}")) {
                 String[] arr = s.split("#");
-                if (testDiscountCardMap.containsKey(arr[1])) {
-                    discountCard = (DiscountCard) testDiscountCardMap.get(arr[1]);
+                if (discountCardsList.containsKey(arr[1])) {
+                    discountCard = discountCardsList.get(arr[1]);
                 }
             }
         }
@@ -90,7 +90,7 @@ public class UserReceipt implements Reciptor {
                 Article article = priceList.get(k);
                 Iteam iteam = new Iteam(article.getCode(),
                         article.getName(),
-                        article.getTax(),
+                        article.getVatGroup(),
                         article.getPrice(),
                         article.getFlags(),
                         0,
@@ -104,10 +104,11 @@ public class UserReceipt implements Reciptor {
     @Override
     public void calcDiscount() {
         items.forEach((k, v) -> {
+            // discount QTY
             if (((v.getFlags() & 1) == 1) && (v.getQuantity() > DISCOUNT_QTY_LIMIT)){
-                double kDsc = (100 - DISCOUNT_PRC_LIMIT)/100;
                 v.setDiscount(DISCOUNT_PRC_LIMIT);
             }
+            // discount by card
             if ((((v.getFlags() >> 1) & 1) == 1) && (discountCard != null)){
                 v.setDiscount(v.getDiscount() + discountCard.getPercent());
             }
@@ -116,17 +117,32 @@ public class UserReceipt implements Reciptor {
     }
 
     @Override
-    public void printReceipt() {
-
-        // header
-        // body
-        // sub total
-        // footer
+    public void printReceipt(Boolean saveToFile) throws IOException {
         Printer printer = new Printer();
-        printer.printHeader();
-        items.forEach((k, v)-> printer.print(v, Adjustment.LEFT));
-        if (discountCard != null) printer.print(discountCard);
-        printer.printFooter();
+        printer.getHeader();
+        items.forEach((k, v)-> printer.getItem(v, Adjustment.LEFT));
+        if (discountCard != null) printer.getDiscount(discountCard);
+        vats.forEach((k, v) -> printer.getVat(v, Adjustment.RIGHT));
+        printer.print("Total discounts: " + String.format("%.2f", totalDiscount), Adjustment.RIGHT);
+        printer.print("T O T A L: " + String.format("%.2f", total), Adjustment.RIGHT);
+        printer.getFooter();
+        printer.printout();
+        if (saveToFile){
+            printer.printoutToFile(path);
+        }
+    }
+
+    @Override
+    public void calcVat() {
+        items.forEach((k, v) -> {
+            if (vats.containsKey(v.getVatGroup())){
+                Vat vat = vats.get(v.getVatGroup());
+                double price = v.getPrice();
+                double vatValue = vats.get(v.getVatGroup()).getValue();
+                double vatItem = price - (price / (1 + vatValue/100));
+                vat.setVatGroupAmount(vat.getGroupAmount() + vatItem);
+            } else throw new RuntimeException("Error vat");
+        });
     }
 
     @Override
