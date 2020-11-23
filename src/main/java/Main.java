@@ -5,6 +5,9 @@ import process.TaskHandler;
 
 import java.io.IOException;
 
+/**
+ * Class uses as main starter
+ */
 public class Main {
     public static void main(String[] args) {
         TaskHandler taskHandler = new TaskHandler(args);

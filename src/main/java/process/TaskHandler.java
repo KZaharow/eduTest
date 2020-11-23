@@ -66,5 +66,7 @@ public class TaskHandler implements ReceiptCreator {
         userReceipt.calcVat();
         userReceipt.getTotal();
         userReceipt.printReceipt(true);
+        System.out.println("press any key");
+        System.in.read();
     }
 }
