@@ -1,5 +1,9 @@
 package process;
 
+import exceptions.ArticleException;
+import exceptions.DiscountCardException;
+
+import exceptions.VatException;
 import io.DataFileReader;
 import models.discountCard.DiscountCard;
 import models.priceList.Article;
@@ -13,6 +17,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
+/**
+ * Class uses as main handler of UserReceipt actions
+ */
 public class TaskHandler implements ReceiptCreator {
     private String[] inputData;
 
@@ -25,9 +32,20 @@ public class TaskHandler implements ReceiptCreator {
         this.inputData = args;
     }
 
-
+    /**
+     * This method collect data from the different data base files
+     * and create main UserReceipt object
+     * After construction the method invoke userReceipt internal methods for
+     * create, calc disc, calc vats , printout data.
+     * At the end we call printout with param true - means save data tot the file.
+     *
+     * @throws IOException
+     * @throws DiscountCardException
+     * @throws ArticleException
+     * @throws VatException
+     */
     @Override
-    public void create() throws IOException {
+    public void create() throws IOException, DiscountCardException, ArticleException, VatException {
 
         //load priceList list from file
         List<String> rawPriceList = new DataFileReader().readReceiptFromFile(PRICE_LIST_PATH);
@@ -48,8 +66,5 @@ public class TaskHandler implements ReceiptCreator {
         userReceipt.calcVat();
         userReceipt.getTotal();
         userReceipt.printReceipt(true);
-
-
-
     }
 }

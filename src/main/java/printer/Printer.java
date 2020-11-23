@@ -2,7 +2,7 @@ package printer;
 
 import io.DataFileWriter;
 import models.discountCard.DiscountCard;
-import models.receipt.Iteam;
+import models.receipt.Item;
 import models.vat.Vat;
 
 import java.io.IOException;
@@ -10,6 +10,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * class uses for adjust and printout receipt to the console.
+ * Due printout is hard system process, printout task has been
+ * implemented like separated Thread
+ *
+ * Also printer has a method for printout data to the file
+ */
 public class Printer {
     // programmed into printer memory
     private final String HEADER = "             SUPERMARKET \"MARIO\"";
@@ -41,10 +48,11 @@ public class Printer {
         }
     }
 
-    public void getItem(Iteam iteam, Adjustment e) {
-        print(iteam.getName(), Adjustment.LEFT);
-        print(String.format("%.2f*%.3f=%.2f(%s)", iteam.getPrice(), iteam.getQuantity(), iteam.getIteamTotal(), iteam.getVatGroup()), Adjustment.RIGHT);
-        print((iteam.getDiscount() != 0) ? "discount=" + iteam.getDiscount() + "%" : "", Adjustment.RIGHT);
+    public void getItem(Item item, Adjustment e) {
+        String s = (item.getName() + LINE).substring(0, LINE.length());
+        print(s, Adjustment.LEFT);
+        print(String.format("%.2f*%.3f=%.2f(%s)", item.getPrice(), item.getQuantity(), item.getItemTotal(), item.getVatGroup()), Adjustment.RIGHT);
+        print((item.getDiscount() != 0) ? "discount=" + item.getDiscount() + "%" : "", Adjustment.RIGHT);
     }
 
     public void getVat(Vat vat, Adjustment e) {
@@ -71,7 +79,13 @@ public class Printer {
     }
 
     public void printout() {
-        lines.stream().forEach(s -> System.out.println(s.substring(0, LINE.length())));
+        Runnable printerTask = new Runnable() {
+            @Override
+            public void run() {
+                lines.stream().forEach(s -> System.out.println(s));
+            }
+        };
+        new Thread(printerTask).start();
     }
 
     public void printoutToFile(Path path) throws IOException {

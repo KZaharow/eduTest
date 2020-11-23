@@ -1,10 +1,12 @@
 package process;
 
-import models.receipt.Iteam;
+import exceptions.ArticleException;
+import exceptions.DiscountCardException;
+import models.receipt.Item;
 import models.vat.Vat;
 import printer.Adjustment;
 import printer.Printer;
-import models.receipt.Reciptor;
+import models.receipt.Receiptor;
 import models.priceList.Article;
 import models.discountCard.DiscountCard;
 
@@ -13,7 +15,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-public class UserReceipt implements Reciptor {
+public class UserReceipt implements Receiptor {
 
 
     private final double DISCOUNT_QTY_LIMIT = 5; // 5.000
@@ -24,7 +26,7 @@ public class UserReceipt implements Reciptor {
     private DiscountCard discountCard;
     private String[] inputArrayString;
     private Map<String, Article> priceList;
-    private Map<String, Iteam> items;
+    private Map<String, Item> items;
     private Map<String, DiscountCard> discountCardsList;
     private Map<String, Vat> vats;
 
@@ -37,15 +39,12 @@ public class UserReceipt implements Reciptor {
     }
 
     @Override
-    public void create() {
+    public void create() throws ArticleException, DiscountCardException {
         items = getItemsList(inputArrayString);
         discountCard = getUserDiscountCard(inputArrayString);
     }
 
-    private DiscountCard getUserDiscountCard(String[] userInputData) {
-
-        //load test discount cards data base
-        //HashMap testDiscountCardMap = DiscounCardMap.getTestDiscountCards();
+    private DiscountCard getUserDiscountCard(String[] userInputData) throws DiscountCardException {
 
         // get user discount card data
         for (String s : userInputData) {
@@ -55,12 +54,14 @@ public class UserReceipt implements Reciptor {
                 if (discountCardsList.containsKey(arr[1])) {
                     discountCard = discountCardsList.get(arr[1]);
                 }
+            } else if (!s.matches("\\d{1,13}-\\d{1,6}")) {
+                throw new DiscountCardException("Input discount card data does not match template #d{1..10}");
             }
         }
         return discountCard;
     }
 
-    private Map getItemsList(String[] userInputData) {
+    private Map getItemsList(String[] userInputData) throws ArticleException {
 
         // basic map for receipt items
         items = new HashMap<>();
@@ -76,11 +77,13 @@ public class UserReceipt implements Reciptor {
                 String v = arr[1];
 
                 // check for twins in user task, and if twins a present make sum qty of it
-                if (userRequestList.containsKey(k)){
+                if (userRequestList.containsKey(k)) {
                     v = String.valueOf(Integer.parseInt(userRequestList.get(k))
                             + Integer.parseInt(v));
                 }
                 userRequestList.put(k, v);
+            } else if (!s.matches("#\\d{1,10}")) {
+                throw new ArticleException("Input article data does not match template d{1..13}-d{1..6}");
             }
         }
 
@@ -88,14 +91,19 @@ public class UserReceipt implements Reciptor {
         userRequestList.forEach((k, v) -> {
             if (priceList.containsKey(k)) {
                 Article article = priceList.get(k);
-                Iteam iteam = new Iteam(article.getCode(),
-                        article.getName(),
-                        article.getVatGroup(),
-                        article.getPrice(),
-                        article.getFlags(),
-                        0,
-                        Double.parseDouble(v));
-                items.put(k, iteam);
+                Item item = null;
+                try {
+                    item = new Item(article.getCode(),
+                            article.getName(),
+                            article.getVatGroup(),
+                            article.getPrice(),
+                            article.getFlags(),
+                            0,
+                            Double.parseDouble(v));
+                } catch (ArticleException e) {
+                    e.printStackTrace();
+                }
+                items.put(k, item);
             }
         });
         return items;
@@ -105,11 +113,11 @@ public class UserReceipt implements Reciptor {
     public void calcDiscount() {
         items.forEach((k, v) -> {
             // discount QTY
-            if (((v.getFlags() & 1) == 1) && (v.getQuantity() > DISCOUNT_QTY_LIMIT)){
+            if (((v.getFlags() & 1) == 1) && (v.getQuantity() > DISCOUNT_QTY_LIMIT)) {
                 v.setDiscount(DISCOUNT_PRC_LIMIT);
             }
             // discount by card
-            if ((((v.getFlags() >> 1) & 1) == 1) && (discountCard != null)){
+            if ((((v.getFlags() >> 1) & 1) == 1) && (discountCard != null)) {
                 v.setDiscount(v.getDiscount() + discountCard.getPercent());
             }
 
@@ -120,14 +128,14 @@ public class UserReceipt implements Reciptor {
     public void printReceipt(Boolean saveToFile) throws IOException {
         Printer printer = new Printer();
         printer.getHeader();
-        items.forEach((k, v)-> printer.getItem(v, Adjustment.LEFT));
+        items.forEach((k, v) -> printer.getItem(v, Adjustment.LEFT));
         if (discountCard != null) printer.getDiscount(discountCard);
         vats.forEach((k, v) -> printer.getVat(v, Adjustment.RIGHT));
         printer.print("Total discounts: " + String.format("%.2f", totalDiscount), Adjustment.RIGHT);
         printer.print("T O T A L: " + String.format("%.2f", total), Adjustment.RIGHT);
         printer.getFooter();
         printer.printout();
-        if (saveToFile){
+        if (saveToFile) {
             printer.printoutToFile(path);
         }
     }
@@ -135,11 +143,11 @@ public class UserReceipt implements Reciptor {
     @Override
     public void calcVat() {
         items.forEach((k, v) -> {
-            if (vats.containsKey(v.getVatGroup())){
+            if (vats.containsKey(v.getVatGroup())) {
                 Vat vat = vats.get(v.getVatGroup());
                 double price = v.getPrice();
                 double vatValue = vats.get(v.getVatGroup()).getValue();
-                double vatItem = price - (price / (1 + vatValue/100));
+                double vatItem = price - (price / (1 + vatValue / 100));
                 vat.setVatGroupAmount(vat.getGroupAmount() + vatItem);
             } else throw new RuntimeException("Error vat");
         });
@@ -148,8 +156,8 @@ public class UserReceipt implements Reciptor {
     @Override
     public void getTotal() {
         items.forEach((k, v) -> {
-            total += v.getIteamTotal();
-            totalDiscount += v.getIteamTotal() * v.getDiscount() / 100;
+            total += v.getItemTotal();
+            totalDiscount += v.getItemTotal() * v.getDiscount() / 100;
         });
     }
 }
